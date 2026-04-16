@@ -93,42 +93,42 @@ sudo ./engine start memtest ./rootfs-alpha /memory_hog \
 ### Screenshot 1 — Multi-container supervision
 
 Two containers running simultaneously under one supervisor process with unique PIDs.
-![Screenshot 1](screenshots/1.png)
+![Screenshot 1](boilerplate/screenshots/1.png)
 
 ### Screenshot 2 — Metadata tracking
 
 Output of engine ps showing container ID, PID, state, and resource limits.
-![Screenshot 2](screenshots/2.png)
+![Screenshot 2](boilerplate/screenshots/2.png)
 
 ### Screenshot 3 — Bounded-buffer logging
 
 Output from engine logs showing data captured via the producer-consumer pipeline.
-![Screenshot 3](screenshots/3.png)
+![Screenshot 3](boilerplate/screenshots/3.png)
 
 ### Screenshot 4 — CLI and IPC
 
 Demonstration of engine run blocking until the container exits via UNIX domain socket IPC.
-![Screenshot 4](screenshots/4.png)
+![Screenshot 4](boilerplate/screenshots/4.png)
 
 ### Screenshot 5 — Soft-limit warning
 
 dmesg output showing the kernel module detecting a soft limit breach.
-![Screenshot 5](screenshots/5.png)
+![Screenshot 5](boilerplate/screenshots/5.png)
 
 ### Screenshot 6 — Hard-limit enforcement
 
 Kernel log showing a container being SIGKILLed for exceeding hard memory limits.
-![Screenshot 6](screenshots/6.png)
+![Screenshot 6](boilerplate/screenshots/6.png)
 
 ### Screenshot 7 — Scheduling experiment
 
 Comparison of CPU-bound vs I/O-bound processes and different nice values.
-![Screenshot 7](screenshots/7.png)
+![Screenshot 7](boilerplate/screenshots/7.png)
 
 ### Screenshot 8 — Clean teardown
 
 Evidence of zero zombie processes and successful kernel module unloading.
-![Screenshot 8](screenshots/8.png)
+![Screenshot 8](boilerplate/screenshots/8.png)
 
 ### 4. Engineering Analysis
 
