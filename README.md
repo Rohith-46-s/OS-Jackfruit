@@ -1,111 +1,208 @@
 # Multi-Container Runtime
 
-A lightweight Linux container runtime in C with a long-running supervisor and a kernel-space memory monitor.
+## 1. Team Information
 
-Read [`project-guide.md`](project-guide.md) for the full project specification.
+| Name | SRN |
+|------|-----|
+| Rohith S | PES2UG24CS409 |
+| Rajath N | PES2UG24CS394 |
 
----
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-## Getting Started
+## 2. Build, Load, and Run Instructions
 
-### 1. Fork the Repository
+### Prerequisites
 
-1. Go to [github.com/shivangjhalani/OS-Jackfruit](https://github.com/shivangjhalani/OS-Jackfruit)
-2. Click **Fork** (top-right)
-3. Clone your fork:
-
-```bash
-git clone https://github.com/<your-username>/OS-Jackfruit.git
-cd OS-Jackfruit
-```
-
-### 2. Set Up Your VM
-
-You need an **Ubuntu 22.04 or 24.04** VM with **Secure Boot OFF**. WSL will not work.
-
-Install dependencies:
+- Ubuntu 22.04 or 24.04 (bare metal or VM)  
+- Secure Boot **OFF** (required for kernel module loading)  
+- Linux kernel headers installed  
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential linux-headers-$(uname -r)
 ```
 
-### 3. Run the Environment Check
+### Build
+```bash
+cd boilerplate
+
+# Build all user-space binaries
+make ci
+
+# Build kernel module (requires kernel headers)
+sudo make module
+
+# Verify binaries exist
+ls engine cpu_hog io_pulse memory_hog monitor.ko
+
+```
+
+### Set Up Root Filesystem
 
 ```bash
 cd boilerplate
-chmod +x environment-check.sh
-sudo ./environment-check.sh
-```
 
-Fix any issues reported before moving on.
-
-### 4. Prepare the Root Filesystem
-
-```bash
-mkdir rootfs-base
+mkdir -p rootfs-base
 wget https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz
-tar -xzf alpine-minirootfs-3.20.3-x86_64.tar.gz -C rootfs-base
+sudo tar -xzf alpine-minirootfs-3.20.3-x86_64.tar.gz -C rootfs-base
 
-# Make one writable copy per container you plan to run
-cp -a ./rootfs-base ./rootfs-alpha
-cp -a ./rootfs-base ./rootfs-beta
+# Create per-container writable copies
+sudo cp -a rootfs-base rootfs-alpha
+sudo cp -a rootfs-base rootfs-beta
+
+# Copy workload binaries into rootfs copies
+sudo cp cpu_hog memory_hog io_pulse rootfs-alpha/
+sudo cp cpu_hog memory_hog io_pulse rootfs-beta/
 ```
 
-Do not commit `rootfs-base/` or `rootfs-*` directories to your repository.
+### Load Kernel Module
+```bash
+sudo insmod monitor.ko
 
-### 5. Understand the Boilerplate
+# Verify device was created
+ls -la /dev/container_monitor
 
-The `boilerplate/` folder contains starter files:
-
-| File                   | Purpose                                             |
-| ---------------------- | --------------------------------------------------- |
-| `engine.c`             | User-space runtime and supervisor skeleton          |
-| `monitor.c`            | Kernel module skeleton                              |
-| `monitor_ioctl.h`      | Shared ioctl command definitions                    |
-| `Makefile`             | Build targets for both user-space and kernel module |
-| `cpu_hog.c`            | CPU-bound test workload                             |
-| `io_pulse.c`           | I/O-bound test workload                             |
-| `memory_hog.c`         | Memory-consuming test workload                      |
-| `environment-check.sh` | VM environment preflight check                      |
-
-Use these as your starting point. You are free to restructure the repository however you want — the submission requirements are listed in the project guide.
-
-### 6. Build and Verify
+# Check kernel log
+sudo dmesg | tail -3
+```
+### Start Supervisor
 
 ```bash
-cd boilerplate
-make
+sudo rm -f /tmp/mini_runtime.sock
+sudo ./engine supervisor ./rootfs-base
 ```
 
-If this compiles without errors, your environment is ready.
-
-### 7. GitHub Actions Smoke Check
-
-Your fork will inherit a minimal GitHub Actions workflow from this repository.
-
-That workflow only performs CI-safe checks:
-
-- `make -C boilerplate ci`
-- user-space binary compilation (`engine`, `memory_hog`, `cpu_hog`, `io_pulse`)
-- `./boilerplate/engine` with no arguments must print usage and exit with a non-zero status
-
-The CI-safe build command is:
+### Launch Containers
 
 ```bash
-make -C boilerplate ci
+# In a second terminal:
+
+# Start a container in background
+sudo ./engine start alpha ./rootfs-alpha /cpu_hog
+
+# Start a container and wait for it to finish
+sudo ./engine run beta ./rootfs-beta /io_pulse
+
+# Start with custom memory limits and priority
+sudo ./engine start memtest ./rootfs-alpha /memory_hog \
+    --soft-mib 10 --hard-mib 20 --nice 5
 ```
+### 3. Demo Screenshots
 
-This smoke check does not test kernel-module loading, supervisor runtime behavior, or container execution.
 
----
+### Screenshot 1 — Multi-container supervision
 
-## What to Do Next
+Two containers running simultaneously under one supervisor process with unique PIDs.
+![Screenshot 1](screenshots/1.png)
 
-Read [`project-guide.md`](project-guide.md) end to end. It contains:
+### Screenshot 2 — Metadata tracking
 
-- The six implementation tasks (multi-container runtime, CLI, logging, kernel monitor, scheduling experiments, cleanup)
-- The engineering analysis you must write
-- The exact submission requirements, including what your `README.md` must contain (screenshots, analysis, design decisions)
+Output of engine ps showing container ID, PID, state, and resource limits.
+![Screenshot 2](screenshots/2.png)
 
-Your fork's `README.md` should be replaced with your own project documentation as described in the submission package section of the project guide. (As in get rid of all the above content and replace with your README.md)
+### Screenshot 3 — Bounded-buffer logging
+
+Output from engine logs showing data captured via the producer-consumer pipeline.
+![Screenshot 3](screenshots/3.png)
+
+### Screenshot 4 — CLI and IPC
+
+Demonstration of engine run blocking until the container exits via UNIX domain socket IPC.
+![Screenshot 4](screenshots/4.png)
+
+### Screenshot 5 — Soft-limit warning
+
+dmesg output showing the kernel module detecting a soft limit breach.
+![Screenshot 5](screenshots/5.png)
+
+### Screenshot 6 — Hard-limit enforcement
+
+Kernel log showing a container being SIGKILLed for exceeding hard memory limits.
+![Screenshot 6](screenshots/6.png)
+
+### Screenshot 7 — Scheduling experiment
+
+Comparison of CPU-bound vs I/O-bound processes and different nice values.
+![Screenshot 7](screenshots/7.png)
+
+### Screenshot 8 — Clean teardown
+
+Evidence of zero zombie processes and successful kernel module unloading.
+![Screenshot 8](screenshots/8.png)
+
+### 4. Engineering Analysis
+
+### 4.1 Isolation Mechanisms
+
+We utilize Linux Namespaces to create isolated environments:
+
+PID Namespace: Prevents containers from seeing or signaling host processes
+UTS Namespace: Allows each container to have a unique hostname
+Mount Namespace: Combined with chroot() to restrict filesystem access
+
+### 4.2 Supervisor and Process Lifecycle
+
+The supervisor acts as the init process for containers:
+
+Prevents orphan processes
+Handles SIGCHLD to immediately reap exited processes
+Avoids zombie accumulation
+
+### 4.3 IPC, Threads, and Synchronization
+
+Path A (Logging):
+
+Uses pipes and a bounded buffer
+Implemented using pthread_mutex_t and pthread_cond_t
+Prevents race conditions between producer and consumer threads
+
+Path B (Control):
+
+Uses a UNIX domain socket
+Enables bidirectional communication between CLI and supervisor
+
+### 4.4 Memory Management and Enforcement
+Kernel module monitors RSS (Resident Set Size)
+Soft limit: Logs warning in dmesg
+Hard limit: Immediately kills process (SIGKILL)
+
+Kernel-space enforcement ensures:
+
+Low latency response
+Protection from memory exhaustion
+
+### 5. Design Decisions and Tradeoffs
+Namespace isolation — chroot vs pivot_root
+
+Choice: chroot()
+Tradeoff: Less secure than pivot_root()
+Justification: Simpler and sufficient for educational use
+
+IPC mechanism — UNIX domain socket
+
+Choice: UNIX domain socket
+Tradeoff: Requires cleanup of .sock file
+Justification: Supports bidirectional communication
+
+Kernel monitor — Mutex vs Spinlock
+
+Choice: Mutex
+Tradeoff: Slight overhead vs spinlock
+Justification: Required because memory allocation may sleep
+
+### 6. Scheduler Experiment Results
+Experiment 1 — CPU-bound priorities
+Container	nice value	Wall-clock time
+alpha	0	9.72s
+beta	15	9.73s
+
+### Analysis:
+On multi-core systems, both tasks receive sufficient CPU time. The CFS scheduler ensures fairness unless the system is saturated.
+
+### Experiment 2 — CPU-bound vs I/O-bound
+Container	Workload	Behaviour
+cpuwork	cpu_hog	Continuous execution
+iowork	io_pulse	Frequent yielding (sleep)
+
+### Analysis:
+I/O-bound tasks are prioritized when waking from sleep, ensuring responsiveness. CPU-bound tasks utilize remaining CPU cycles
